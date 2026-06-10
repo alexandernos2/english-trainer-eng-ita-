@@ -30,6 +30,31 @@ body {
   padding: 16px;
 }
 
+
+
+
+
+
+
+
+.hearts {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.heart {
+  width: 26px;
+  height: 26px;
+}
+
+
+
+
+
+
+
 .container {
   width: 100%;
   max-width: 720px;

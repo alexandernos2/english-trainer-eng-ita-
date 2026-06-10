@@ -1,3 +1,9 @@
+const tapAudio = document.getElementById("tapSound");
+const musicAudio = document.getElementById("bgMusic");
+
+musicAudio.loop = true;
+musicAudio.volume = 0.3;
+
 if (window.__APP_STARTED__ === undefined) {
   window.__APP_STARTED__ = false;
 }
@@ -13,13 +19,12 @@ const state = {
 };
 
 const game = document.getElementById("game");
-
 document.documentElement.setAttribute("lang", "it");
 
 const HEART = "Vite";
 const STAR = "Punteggio";
 
-/* ---------------- NORMALIZE ---------------- */
+/* ---------------- UTILS ---------------- */
 
 function normalize(str) {
   return (str || "")
@@ -28,20 +33,14 @@ function normalize(str) {
     .trim();
 }
 
-/* ---------------- WORD LOOKUP ---------------- */
-
 function getItalianFromSentence(en) {
   const key = normalize(en);
   return window.words?.[key]?.it || "-";
 }
 
-/* ---------------- CLOZE BUILDER ---------------- */
-
 function buildSentence(q) {
   return q.question.replace("____", q.answer);
 }
-
-/* ---------------- SHUFFLE ---------------- */
 
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
@@ -51,48 +50,49 @@ function fixText(str) {
   if (!str) return "";
   try {
     return decodeURIComponent(escape(str));
-  } catch (e) {
+  } catch {
     return str;
   }
 }
 
-/* ---------------- INIT ---------------- */
+/* ---------------- START SCREEN ---------------- */
 
 function start() {
   state.mode = null;
-  game.innerHTML = "";
-
   game.innerHTML = `
     <h2>English Trainer</h2>
 
-    <div style="margin: 15px 0; line-height: 1.6;">
-      <p><strong>Regole</strong></p>
+    <p>Parti con 5 vite</p>
+    <p>+1 vita e +5 punti se corretto</p>
+    <p>-1 vita e -3 punti se sbagliato</p>
+    <p>Max vite: 10</p>
 
-      <p>Parti con 5 vite.</p>
-      <p>Ogni risposta corretta: +1 vita e +5 punti.</p>
-      <p>Ogni errore: -1 vita e -3 punti.</p>
-      <p>Se le vite arrivano a 0, il gioco termina.</p>
+    <p>Record: ${state.bestScore}</p>
 
-      <p>Obiettivo: battere il record.</p>
-    </div>
-
-    <p>Record attuale: ${state.bestScore}</p>
-
-    <button id="clozeBtn">Inizia gioco</button>
+    <button id="clozeBtn">Cloze Mode</button>
   `;
 
   document.getElementById("clozeBtn").onclick = startCloze;
 }
 
-/* ---------------- START ---------------- */
+/* ---------------- AUDIO START ---------------- */
 
 document.addEventListener("DOMContentLoaded", () => {
   if (window.__APP_STARTED__) return;
   window.__APP_STARTED__ = true;
+
+  const startAudio = async () => {
+    try {
+      await musicAudio.play();
+    } catch (e) {}
+  };
+
+  document.addEventListener("click", startAudio, { once: true });
+
   start();
 });
 
-/* ---------------- RESET ---------------- */
+/* ---------------- GAME RESET ---------------- */
 
 function resetGame() {
   state.index = 0;
@@ -100,13 +100,25 @@ function resetGame() {
   state.score = 0;
 }
 
-/* ---------------- CLOZE ---------------- */
+/* ---------------- MODE ---------------- */
 
 function startCloze() {
   state.mode = "cloze";
   state.deck = shuffle(window.cloze || []);
   resetGame();
   render();
+}
+
+/* ---------------- HEARTS ---------------- */
+
+function renderHearts() {
+  let html = "";
+
+  for (let i = 0; i < 10; i++) {
+    html += `<img src="${i < state.hearts ? "heart.png" : "heart_empty.png"}" width="26" height="26">`;
+  }
+
+  return html;
 }
 
 /* ---------------- RENDER ---------------- */
@@ -116,8 +128,8 @@ function render() {
 
   const q = state.deck[state.index];
 
-  const question = q.question;
   const correct = q.answer;
+  state.correct = correct;
 
   const allAnswers = (window.cloze || []).map(c => c.answer);
 
@@ -125,19 +137,16 @@ function render() {
     allAnswers.filter(a => a !== correct)
   ).slice(0, 3);
 
-  const options = shuffle([
-    correct,
-    ...wrongAnswers
-  ]);
-
-  state.correct = correct;
+  const options = shuffle([correct, ...wrongAnswers]);
 
   game.innerHTML = `
-    <h2>${question}</h2>
+    <h2>${q.question}</h2>
 
-    <p>${HEART} ${state.hearts} | ${STAR} ${state.score}</p>
+    <div>${renderHearts()}</div>
 
-    <div id="options">
+    <p>${STAR} ${state.score}</p>
+
+    <div>
       ${options.map(o => `<button class="opt">${o}</button>`).join("")}
     </div>
   `;
@@ -155,15 +164,23 @@ document.addEventListener("click", (e) => {
 function handleAnswer(val) {
   const ok = val === state.correct;
 
+ try {
+  tapAudio.currentTime = 0;
+  const p = tapAudio.play();
+  if (p !== undefined) p.catch(() => {});
+} catch (e) {}
+
   if (ok) {
     state.score += 5;
-    state.hearts += 1;
+    state.hearts = Math.min(10, state.hearts + 1);
   } else {
     state.score -= 3;
-    state.hearts -= 1;
+    state.hearts = Math.max(0, state.hearts - 1);
   }
 
   if (state.score < 0) state.score = 0;
+
+  if (state.hearts <= 0) return endGame();
 
   showResult(ok);
 }
@@ -182,20 +199,14 @@ function showResult(ok) {
     <p>EN: ${fixText(en)}</p>
     <p>IT: ${fixText(it)}</p>
 
-    <p>${HEART} ${state.hearts} | ${STAR} ${state.score}</p>
+    <div>${renderHearts()}</div>
+
+    <p>${STAR} ${state.score}</p>
 
     <button id="nextBtn">Continua</button>
-    <button id="revBtn">Reverso</button>
   `;
 
   document.getElementById("nextBtn").onclick = next;
-
-  document.getElementById("revBtn").onclick = () =>
-    window.open(
-      "https://context.reverso.net/translation/english-italian/" +
-      encodeURIComponent(en),
-      "_blank"
-    );
 }
 
 /* ---------------- NEXT ---------------- */
@@ -211,7 +222,7 @@ function next() {
   render();
 }
 
-/* ---------------- END ---------------- */
+/* ---------------- GAME OVER ---------------- */
 
 function endGame() {
   if (state.score > state.bestScore) {
