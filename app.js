@@ -131,13 +131,55 @@ function render() {
   const correct = q.answer;
   state.correct = correct;
 
-  const allAnswers = (window.cloze || []).map(c => c.answer);
+  // -------------------------------
+  // SMART DISTRACTORS (NEW SYSTEM)
+  // -------------------------------
 
-  const wrongAnswers = shuffle(
-    allAnswers.filter(a => a !== correct)
-  ).slice(0, 3);
+  const pool = (window.cloze || []).filter(item => item.answer !== correct);
 
-  const options = shuffle([correct, ...wrongAnswers]);
+  let slotPool = pool.filter(x => x.slot === q.slot);
+  let domainPool = pool.filter(x => x.domain === q.domain);
+  let patternPool = pool.filter(x => x.pattern === q.pattern);
+
+// pesa i candidati invece di unirli in modo piatto
+let scored = new Map();
+
+function add(list, weight) {
+  for (let x of list) {
+    const key = x.answer;
+
+    if (!scored.has(key)) scored.set(key, { item: x, score: 0 });
+
+    scored.get(key).score += weight;
+  }
+}
+
+// priorità reale
+add(slotPool, 3);
+add(domainPool, 2);
+add(patternPool, 1);
+
+// trasformazione in array ordinato
+let candidates = [...scored.values()]
+  .sort((a, b) => b.score - a.score)
+  .map(x => x.item);
+  if (candidates.length < 3) {
+    candidates = pool;
+  }
+
+  const unique = [];
+  const seen = new Set();
+
+  for (let c of candidates) {
+    if (!seen.has(c.answer)) {
+      seen.add(c.answer);
+      unique.push(c);
+    }
+  }
+
+const wrongAnswers = shuffle(
+  [...new Set(unique.map(x => x.answer))]
+).slice(0, 3);  const options = shuffle([correct, ...wrongAnswers]);
 
   game.innerHTML = `
     <h2>${q.question}</h2>
@@ -204,11 +246,19 @@ function showResult(ok) {
     <p>${STAR} ${state.score}</p>
 
     <button id="nextBtn">Continua</button>
+    <button id="revBtn">Reverso</button>
   `;
 
   document.getElementById("nextBtn").onclick = next;
-}
 
+  document.getElementById("revBtn").onclick = () => {
+    window.open(
+      "https://context.reverso.net/translation/english-italian/" +
+      encodeURIComponent(en),
+      "_blank"
+    );
+  };
+}
 /* ---------------- NEXT ---------------- */
 
 function next() {
