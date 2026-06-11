@@ -5391,7 +5391,7 @@ window.cloze = [
     "usable": true
   },
   {
-    "question": "How are ____ ? Did you have a good trip?",
+    "question": "How are ____ Did you have a good trip?",
     "answer": "you",
     "slot": "pronoun_subject",
     "domain": "movement",
