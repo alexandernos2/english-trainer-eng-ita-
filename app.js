@@ -291,3 +291,25 @@ function endGame() {
 
   document.getElementById("retryBtn").onclick = start;
 }
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const bgVideo = document.getElementById("bgVideo");
+
+  if (bgVideo) {
+    bgVideo.muted = true;
+    bgVideo.loop = true;
+    bgVideo.playsInline = true;
+
+    const playPromise = bgVideo.play();
+
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        document.addEventListener("click", () => {
+          bgVideo.play().catch(() => {});
+        }, { once: true });
+      });
+    }
+  }
+});
